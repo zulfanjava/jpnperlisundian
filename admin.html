@@ -432,7 +432,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCFsldwyJ9XwfNQZ7D3HIOeD4uRnX1VqmY",
@@ -447,6 +447,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const COMPANIES_COLLECTION = "registered_companies";
+  const COUNTER_DOC_ID = "sequence_counter";
 
   const ADMIN_USERNAME = "admin";
   const ADMIN_PASSWORD = "admin";
@@ -474,15 +475,42 @@
     return expiryDate >= threeMonthsLater;
   }
 
-  async function getNextSequenceNumber() {
-    let maxSeq = 0;
-    companies.forEach(c => {
-      const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
-      if (seq > maxSeq) maxSeq = seq;
-    });
-    const nextSeq = maxSeq + 1;
-    if (nextSeq > 2000) throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
-    return nextSeq;
+  // ATOMIC sequence number generation using Firestore Transaction
+  async function getNextSequenceNumberAtomic() {
+    const counterRef = doc(db, "counters", COUNTER_DOC_ID);
+    
+    try {
+      const newSeq = await runTransaction(db, async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        let currentSeq = 1;
+        
+        if (counterDoc.exists()) {
+          currentSeq = (counterDoc.data().currentSeq || 0) + 1;
+        } else {
+          // First time - need to check existing companies
+          const companiesSnapshot = await transaction.get(collection(db, COMPANIES_COLLECTION));
+          let maxSeq = 0;
+          companiesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const seq = data.autoSeq || seqFromNumber(data.undianNumber) || 0;
+            if (seq > maxSeq) maxSeq = seq;
+          });
+          currentSeq = maxSeq + 1;
+        }
+        
+        if (currentSeq > 2000) {
+          throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
+        }
+        
+        transaction.set(counterRef, { currentSeq: currentSeq });
+        return currentSeq;
+      });
+      
+      return newSeq;
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      throw error;
+    }
   }
 
   // REAL-TIME LISTENER for companies
@@ -561,7 +589,6 @@
     });
     tbody.innerHTML = html;
 
-    // Bind edit buttons
     document.querySelectorAll('.edit-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
@@ -572,7 +599,6 @@
       });
     });
 
-    // Bind delete buttons
     document.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
@@ -582,21 +608,29 @@
   }
 
   async function updateStats() {
-    document.getElementById('totalCompanies').innerHTML = companies.length;
-    document.getElementById('totalProjects').innerHTML = "30";
+    const totalElem = document.getElementById('totalCompanies');
+    if (totalElem) totalElem.innerHTML = companies.length;
+    
+    const projectsElem = document.getElementById('totalProjects');
+    if (projectsElem) projectsElem.innerHTML = "30";
 
     let maxSeq = 0;
     companies.forEach(c => {
       const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
       if (seq > maxSeq) maxSeq = seq;
     });
-    document.getElementById('maxSequence').innerHTML = maxSeq;
+    
+    const maxSeqElem = document.getElementById('maxSequence');
+    if (maxSeqElem) maxSeqElem.innerHTML = maxSeq;
 
     const nextSeq = maxSeq + 1;
-    if (nextSeq <= 2000) {
-      document.getElementById('nextSequence').innerHTML = `${formatNumber(nextSeq)}<br><small style="font-size:0.7rem;">(Siri ${nextSeq})</small>`;
-    } else {
-      document.getElementById('nextSequence').innerHTML = "Penuh (2000)";
+    const nextSeqElem = document.getElementById('nextSequence');
+    if (nextSeqElem) {
+      if (nextSeq <= 2000) {
+        nextSeqElem.innerHTML = `${formatNumber(nextSeq)}<br><small style="font-size:0.7rem;">(Siri ${nextSeq})</small>`;
+      } else {
+        nextSeqElem.innerHTML = "Penuh (2000)";
+      }
     }
   }
 
@@ -626,12 +660,12 @@
     addBtn.textContent = '⏳ Menjana nombor...';
 
     try {
-      const nextSeq = await getNextSequenceNumber();
+      // Use atomic transaction to get unique sequence number
+      const nextSeq = await getNextSequenceNumberAtomic();
+      
       if (nextSeq > 2000) throw new Error("Kuota pendaftaran penuh (2000).");
 
       const autoUndianNumber = formatNumber(nextSeq);
-      const exists = companies.some(c => c.undianNumber === autoUndianNumber);
-      if (exists) throw new Error("Nombor undian sudah wujud.");
 
       await addDoc(collection(db, COMPANIES_COLLECTION), {
         companyName: companyName,
@@ -743,7 +777,6 @@
     return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
   }
 
-  // Login Logic
   function login() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
@@ -776,7 +809,7 @@
         <div class="login-box">
           <h1>👑 Admin Panel</h1>
           <p>e-Undian JPN Perlis - Pengurusan Syarikat</p>
-          <div id="loginError" style="display: none;" class="warning-note" style="background:#ffebee; color:#c62828;"></div>
+          <div id="loginError" style="display: none;" class="warning-note"></div>
           <div style="margin-bottom: 20px;">
             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Username</label>
             <input type="text" id="username" placeholder="admin" autocomplete="off" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 12px;">
@@ -850,7 +883,7 @@
           </div>
         </div>
         <div class="sync-badge">
-          🔄 Real-time sync active
+          🔄 Real-time sync active | 🔒 Atomic sequence numbers
         </div>
       </div>
 
@@ -881,11 +914,9 @@
       </div>
     `;
 
-    // Bind events
     document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('addCompanyBtn').addEventListener('click', addCompany);
 
-    // Modal handlers
     const modal = document.getElementById('editModal');
     const closeSpan = document.getElementById('closeModal');
     const cancelBtn = document.getElementById('cancelEditBtn');
@@ -899,11 +930,9 @@
       if (event.target === modal) closeModal();
     };
 
-    // Start real-time listener
     setupRealtimeListener();
   }
 
-  // Initialize
   if (sessionStorage.getItem('admin_logged_in') === 'true') {
     renderDashboard();
   } else {
