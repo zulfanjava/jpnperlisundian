@@ -533,12 +533,12 @@
 
 <a href="admin.html" class="admin-link" target="_blank">👑 Admin Panel</a>
 <div class="sync-badge">
-  🔄 Real-time sync active
+  🔄 Real-time sync active | 🔒 Atomic sequence numbers
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCFsldwyJ9XwfNQZ7D3HIOeD4uRnX1VqmY",
@@ -553,6 +553,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const COMPANIES_COLLECTION = "registered_companies";
+  const COUNTER_DOC_ID = "sequence_counter";
 
   let companies = [];
   let unsubscribeCompanies = null;
@@ -592,15 +593,42 @@
     window.onclick = (event) => { if (event.target === modal) modal.style.display = 'none'; };
   }
 
-  function getNextSequenceNumber() {
-    let maxSeq = 0;
-    companies.forEach(c => {
-      const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
-      if (seq > maxSeq) maxSeq = seq;
-    });
-    const nextSeq = maxSeq + 1;
-    if (nextSeq > 2000) throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
-    return nextSeq;
+  // ATOMIC sequence number generation using Firestore Transaction
+  async function getNextSequenceNumberAtomic() {
+    const counterRef = doc(db, "counters", COUNTER_DOC_ID);
+    
+    try {
+      const newSeq = await runTransaction(db, async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        let currentSeq = 1;
+        
+        if (counterDoc.exists()) {
+          currentSeq = (counterDoc.data().currentSeq || 0) + 1;
+        } else {
+          // First time - need to check existing companies
+          const companiesSnapshot = await transaction.get(collection(db, COMPANIES_COLLECTION));
+          let maxSeq = 0;
+          companiesSnapshot.forEach(doc => {
+            const data = doc.data();
+            const seq = data.autoSeq || seqFromNumber(data.undianNumber) || 0;
+            if (seq > maxSeq) maxSeq = seq;
+          });
+          currentSeq = maxSeq + 1;
+        }
+        
+        if (currentSeq > 2000) {
+          throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
+        }
+        
+        transaction.set(counterRef, { currentSeq: currentSeq });
+        return currentSeq;
+      });
+      
+      return newSeq;
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      throw error;
+    }
   }
 
   // REAL-TIME LISTENER for companies
@@ -639,12 +667,18 @@
     });
     const nextSeq = maxSeq + 1;
     if (nextSeq <= 2000) {
-      document.getElementById('nextNumberPreview').value = formatNumber(nextSeq);
-      document.getElementById('autoUndianDisplay').placeholder = formatNumber(nextSeq);
-      document.getElementById('autoUndianDisplay').value = '';
+      const nextPreview = document.getElementById('nextNumberPreview');
+      if (nextPreview) nextPreview.value = formatNumber(nextSeq);
+      const autoDisplay = document.getElementById('autoUndianDisplay');
+      if (autoDisplay) {
+        autoDisplay.placeholder = formatNumber(nextSeq);
+        autoDisplay.value = '';
+      }
     } else {
-      document.getElementById('nextNumberPreview').value = "HABIS (2000)";
-      document.getElementById('autoUndianDisplay').placeholder = "Penuh";
+      const nextPreview = document.getElementById('nextNumberPreview');
+      if (nextPreview) nextPreview.value = "HABIS (2000)";
+      const autoDisplay = document.getElementById('autoUndianDisplay');
+      if (autoDisplay) autoDisplay.placeholder = "Penuh";
     }
   }
 
@@ -653,7 +687,8 @@
     if (!container) return;
     if (companies.length === 0) {
       container.innerHTML = '<div class="empty-state">📭 Tiada syarikat berdaftar. Sila daftar (nombor 001,002...).</div>';
-      document.getElementById('totalCount').innerText = '0';
+      const totalCount = document.getElementById('totalCount');
+      if (totalCount) totalCount.innerText = '0';
       return;
     }
     let html = '<div class="company-list">';
@@ -669,7 +704,8 @@
     });
     html += '</div>';
     container.innerHTML = html;
-    document.getElementById('totalCount').innerText = companies.length;
+    const totalCount = document.getElementById('totalCount');
+    if (totalCount) totalCount.innerText = companies.length;
   }
 
   function findCompanyByUndianNumber(undianNumber) {
@@ -786,20 +822,26 @@
   }
 
   function showWinnerCelebration(companyName, undianNumber, projectName) {
-    document.getElementById('winnerPopupCompanyName').innerText = companyName;
-    document.getElementById('winnerPopupUndianNumber').innerText = undianNumber;
-    document.getElementById('winnerPopupProjectName').innerHTML = `📋 Projek: ${projectName}`;
+    const winnerNameElem = document.getElementById('winnerPopupCompanyName');
+    const winnerNumElem = document.getElementById('winnerPopupUndianNumber');
+    const projectNameElem = document.getElementById('winnerPopupProjectName');
+    if (winnerNameElem) winnerNameElem.innerText = companyName;
+    if (winnerNumElem) winnerNumElem.innerText = undianNumber;
+    if (projectNameElem) projectNameElem.innerHTML = `📋 Projek: ${projectName}`;
     const popup = document.getElementById('winnerPopup');
-    popup.style.display = 'flex';
+    if (popup) popup.style.display = 'flex';
     startFireworks();
 
-    document.getElementById('closeWinnerPopup').onclick = () => {
-      popup.style.display = 'none';
-      stopFireworks();
-    };
+    const closeBtn = document.getElementById('closeWinnerPopup');
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        if (popup) popup.style.display = 'none';
+        stopFireworks();
+      };
+    }
 
     setTimeout(() => {
-      if (popup.style.display === 'flex') {
+      if (popup && popup.style.display === 'flex') {
         popup.style.display = 'none';
         stopFireworks();
       }
@@ -902,8 +944,8 @@
     const cidbInput = document.getElementById('cidbExpiryDate');
     const registerBtn = document.getElementById('registerBtn');
     const msgDiv = document.getElementById('registerMsg');
-    const companyName = companyNameInput.value.trim();
-    const cidbExpiry = cidbInput.value;
+    const companyName = companyNameInput ? companyNameInput.value.trim() : '';
+    const cidbExpiry = cidbInput ? cidbInput.value : '';
 
     if (!companyName) { alert('Sila masukkan Nama Syarikat!'); return; }
     if (!cidbExpiry) { alert('Sila masukkan Tarikh Tamat CIDB (wajib)'); showCidbRequirementPopup(); return; }
@@ -913,17 +955,19 @@
       return;
     }
 
-    registerBtn.disabled = true;
-    registerBtn.textContent = '⏳ Mendaftar...';
-    msgDiv.innerHTML = '';
+    if (registerBtn) {
+      registerBtn.disabled = true;
+      registerBtn.textContent = '⏳ Mendaftar...';
+    }
+    if (msgDiv) msgDiv.innerHTML = '';
 
     try {
-      let newSeq = getNextSequenceNumber();
+      // Use atomic transaction to get unique sequence number
+      let newSeq = await getNextSequenceNumberAtomic();
+      
       if (newSeq > 2000) throw new Error("Kuota pendaftaran penuh (2000).");
 
       const autoUndianNumber = formatNumber(newSeq);
-      const exists = companies.some(c => c.undianNumber === autoUndianNumber);
-      if (exists) throw new Error("Nombor undian sudah wujud.");
 
       await addDoc(collection(db, COMPANIES_COLLECTION), {
         companyName: companyName,
@@ -933,17 +977,21 @@
         createdAt: new Date().toISOString()
       });
 
-      companyNameInput.value = '';
-      cidbInput.value = '';
-      msgDiv.innerHTML = `<div style="background:#e0f2e9; color:#1e5631; padding:10px; border-radius:12px;">✅ Pendaftaran BERJAYA! Nombor Undian: ${autoUndianNumber}</div>`;
-      setTimeout(() => { if(msgDiv) msgDiv.innerHTML = ''; }, 4000);
+      if (companyNameInput) companyNameInput.value = '';
+      if (cidbInput) cidbInput.value = '';
+      if (msgDiv) {
+        msgDiv.innerHTML = `<div style="background:#e0f2e9; color:#1e5631; padding:10px; border-radius:12px;">✅ Pendaftaran BERJAYA! Nombor Undian: ${autoUndianNumber}</div>`;
+        setTimeout(() => { if(msgDiv) msgDiv.innerHTML = ''; }, 4000);
+      }
     } catch (error) {
       console.error(error);
       alert(`Ralat: ${error.message}`);
-      msgDiv.innerHTML = `<div style="color:#b91c1c;">❌ Gagal: ${error.message}</div>`;
+      if (msgDiv) msgDiv.innerHTML = `<div style="color:#b91c1c;">❌ Gagal: ${error.message}</div>`;
     } finally {
-      registerBtn.disabled = false;
-      registerBtn.textContent = '✅ Daftar Syarikat (Dapatkan Nombor Auto)';
+      if (registerBtn) {
+        registerBtn.disabled = false;
+        registerBtn.textContent = '✅ Daftar Syarikat (Dapatkan Nombor Auto)';
+      }
     }
   }
 
@@ -952,22 +1000,30 @@
 
   function showPanel(panelName) {
     if (panelName === 'register') {
-      registerPanelDiv.style.display = 'block';
-      undianProjekPanelDiv.style.display = 'none';
-      document.getElementById('navHome').classList.add('active');
-      document.getElementById('navUndianProjek').classList.remove('active');
+      if (registerPanelDiv) registerPanelDiv.style.display = 'block';
+      if (undianProjekPanelDiv) undianProjekPanelDiv.style.display = 'none';
+      const navHome = document.getElementById('navHome');
+      const navUndian = document.getElementById('navUndianProjek');
+      if (navHome) navHome.classList.add('active');
+      if (navUndian) navUndian.classList.remove('active');
     } else {
-      registerPanelDiv.style.display = 'none';
-      undianProjekPanelDiv.style.display = 'block';
-      document.getElementById('navHome').classList.remove('active');
-      document.getElementById('navUndianProjek').classList.add('active');
+      if (registerPanelDiv) registerPanelDiv.style.display = 'none';
+      if (undianProjekPanelDiv) undianProjekPanelDiv.style.display = 'block';
+      const navHome = document.getElementById('navHome');
+      const navUndian = document.getElementById('navUndianProjek');
+      if (navHome) navHome.classList.remove('active');
+      if (navUndian) navUndian.classList.add('active');
       renderProjectsTable();
     }
   }
 
-  document.getElementById('navHome').addEventListener('click', () => showPanel('register'));
-  document.getElementById('navUndianProjek').addEventListener('click', () => showPanel('undianProjek'));
-  document.getElementById('registerBtn').addEventListener('click', registerNewCompany);
+  const navHome = document.getElementById('navHome');
+  const navUndian = document.getElementById('navUndianProjek');
+  const registerBtn = document.getElementById('registerBtn');
+  
+  if (navHome) navHome.addEventListener('click', () => showPanel('register'));
+  if (navUndian) navUndian.addEventListener('click', () => showPanel('undianProjek'));
+  if (registerBtn) registerBtn.addEventListener('click', registerNewCompany);
 
   // Initialize
   setupRealtimeListener();
