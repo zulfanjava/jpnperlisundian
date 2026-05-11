@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Admin Panel - e-Undian JPN Perlis (Nombor Ringkas 001-2000 + CIDB 3 Bulan)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1a1a2e;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .login-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0a2b3e 0%, #1a1a2e 100%);
+    }
+
+    .login-box {
+      background: white;
+      padding: 40px;
+      border-radius: 28px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    .login-box h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: #0a2b3e;
+    }
+
+    .login-box p {
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .admin-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .admin-header {
+      background: linear-gradient(135deg, #0a2b3e, #0d3b52);
+      padding: 20px 30px;
+      border-radius: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+
+    .admin-header h1 {
+      color: white;
+      font-size: 1.5rem;
+    }
+
+    .logout-btn {
+      background: white;
+      color: #0a2b3e;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 40px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: #e0e0e0;
+      transform: translateY(-2px);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 24px;
+      border-radius: 20px;
+      text-align: center;
+      border-left: 5px solid #0a2b3e;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .stat-number {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #0a2b3e;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .data-table {
+      background: white;
+      border-radius: 24px;
+      overflow: hidden;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .data-table h2 {
+      padding: 20px 24px;
+      background: #f8f9fc;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 14px 12px;
+      text-align: left;
+      border-bottom: 1px solid #edf2f7;
+    }
+
+    th {
+      background: #0a2b3e;
+      color: white;
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background: #f8fafc;
+    }
+
+    .delete-btn, .edit-btn {
+      padding: 6px 16px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+      margin: 2px;
+    }
+
+    .edit-btn {
+      background: #ff9800;
+      color: white;
+    }
+
+    .edit-btn:hover {
+      background: #f57c00;
+      transform: translateY(-1px);
+    }
+
+    .delete-btn {
+      background: #d32f2f;
+      color: white;
+    }
+
+    .delete-btn:hover {
+      background: #b71c1c;
+      transform: translateY(-1px);
+    }
+
+    .add-btn {
+      background: linear-gradient(135deg, #0a2b3e, #144e6b);
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .add-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+
+    .input-group {
+      display: flex;
+      gap: 12px;
+      padding: 20px;
+      flex-wrap: wrap;
+    }
+
+    .input-group input {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      transition: 0.2s;
+      min-width: 180px;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #0a2b3e;
+      box-shadow: 0 0 0 3px rgba(10,43,62,0.1);
+    }
+
+    .warning-note {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 12px 20px;
+      margin: 10px 20px 20px 20px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      color: #e65100;
+    }
+
+    .number-badge {
+      background: #0a2b3e;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 30px;
+      font-family: monospace;
+      font-weight: bold;
+      display: inline-block;
+      font-size: 0.85rem;
+    }
+
+    .cidb-valid {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .cidb-invalid {
+      background: #ffebee;
+      color: #c62828;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background-color: white;
+      margin: auto;
+      padding: 32px;
+      border-radius: 28px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+      animation: modalSlide 0.3s ease;
+    }
+
+    @keyframes modalSlide {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal-content h3 {
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      border-left: 5px solid #0a2b3e;
+      padding-left: 16px;
+    }
+
+    .modal-content input {
+      width: 100%;
+      padding: 12px;
+      margin: 12px 0;
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      font-size: 0.9rem;
+    }
+
+    .modal-content input:focus {
+      outline: none;
+      border-color: #0a2b3e;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: 0.2s;
+    }
+
+    .save-btn {
+      background: #0a2b3e;
+      color: white;
+    }
+
+    .save-btn:hover {
+      background: #144e6b;
+    }
+
+    .cancel-btn {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    .cancel-btn:hover {
+      background: #ccc;
+    }
+
+    .close {
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #aaa;
+      transition: 0.2s;
+    }
+
+    .close:hover {
+      color: #000;
+    }
+
+    .success-toast {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: #4caf50;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 40px;
+      font-weight: 600;
+      z-index: 1100;
+      animation: fadeInOut 2.5s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(20px); }
+      15% { opacity: 1; transform: translateY(0); }
+      85% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(20px); }
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .sync-badge {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #0a2b3e;
+      color: #4caf50;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      z-index: 100;
+    }
+
+    @media (max-width: 768px) {
+      .admin-header {
+        flex-direction: column;
+        text-align: center;
+      }
+      th, td {
+        padding: 8px;
+        font-size: 0.7rem;
+      }
+      .edit-btn, .delete-btn {
+        padding: 4px 10px;
+        font-size: 0.7rem;
+      }
+      .input-group {
+        flex-direction: column;
+      }
+      .stat-number {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="adminApp"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFsldwyJ9XwfNQZ7D3HIOeD4uRnX1VqmY",
+    authDomain: "undianjpn.firebaseapp.com",
+    projectId: "undianjpn",
+    storageBucket: "undianjpn.firebasestorage.app",
+    messagingSenderId: "695059603392",
+    appId: "1:695059603392:web:7dd9074d63576d742e3225",
+    measurementId: "G-Z11V5M9RKS"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const COMPANIES_COLLECTION = "registered_companies";
+
+  const ADMIN_USERNAME = "admin";
+  const ADMIN_PASSWORD = "admin";
+
+  let companies = [];
+  let unsubscribeCompanies = null;
+
+  function formatNumber(seq) {
+    return seq.toString().padStart(3, '0');
+  }
+
+  function seqFromNumber(numStr) {
+    const match = String(numStr).match(/^(\d+)$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  function isCidbValidFor3Months(expiryDateStr) {
+    if (!expiryDateStr) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiryDate = new Date(expiryDateStr);
+    expiryDate.setHours(0, 0, 0, 0);
+    const threeMonthsLater = new Date(today);
+    threeMonthsLater.setMonth(today.getMonth() + 3);
+    return expiryDate >= threeMonthsLater;
+  }
+
+  async function getNextSequenceNumber() {
+    let maxSeq = 0;
+    companies.forEach(c => {
+      const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
+      if (seq > maxSeq) maxSeq = seq;
+    });
+    const nextSeq = maxSeq + 1;
+    if (nextSeq > 2000) throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
+    return nextSeq;
+  }
+
+  // REAL-TIME LISTENER for companies
+  function setupRealtimeListener() {
+    if (unsubscribeCompanies) {
+      unsubscribeCompanies();
+    }
+    
+    const q = query(collection(db, COMPANIES_COLLECTION), orderBy("autoSeq", "asc"));
+    unsubscribeCompanies = onSnapshot(q, (snapshot) => {
+      companies = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        companies.push({
+          id: docSnap.id,
+          companyName: data.companyName || "N/A",
+          undianNumber: data.undianNumber || "N/A",
+          cidbExpiry: data.cidbExpiry || "",
+          autoSeq: data.autoSeq || null,
+          createdAt: data.createdAt || null
+        });
+      });
+      renderTable();
+      updateStats();
+    }, (error) => {
+      console.error("Firestore real-time error:", error);
+      const tbody = document.getElementById('companiesTbody');
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color:red; text-align:center; padding:40px;">❌ Ralat: ${error.message}</td></tr>`;
+      }
+    });
+  }
+
+  function getCidbStatus(expiryDate) {
+    if (!expiryDate) return '<span class="cidb-invalid">Tiada tarikh</span>';
+    const isValid = isCidbValidFor3Months(expiryDate);
+    if (isValid) {
+      return `<span class="cidb-valid">✅ Sah (≥3 bulan)</span>`;
+    } else {
+      return `<span class="cidb-invalid">❌ TIDAK SAH (< 3 bulan)</span>`;
+    }
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('companiesTbody');
+    if (!tbody) return;
+
+    if (companies.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px;">📭 Tiada data syarikat. Sila tambah menggunakan borang di atas.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    companies.forEach((comp, index) => {
+      const date = comp.createdAt ? new Date(comp.createdAt).toLocaleString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+      const seqDisplay = comp.autoSeq ? `#${comp.autoSeq}` : '-';
+      const cidbStatus = getCidbStatus(comp.cidbExpiry);
+
+      html += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>
+            <strong>${escapeHtml(comp.companyName)}</strong><br>
+            <small style="color:#888;">Siri: ${seqDisplay}</small>
+          </td>
+          <td><span class="number-badge">${escapeHtml(comp.undianNumber)}</span></td>
+          <td>${escapeHtml(comp.cidbExpiry || '-')}</td>
+          <td>${cidbStatus}</td>
+          <td>${escapeHtml(date)}</td>
+          <td>
+            <button class="edit-btn" data-id="${comp.id}" data-name="${escapeHtml(comp.companyName)}" data-number="${escapeHtml(comp.undianNumber)}" data-cidb="${escapeHtml(comp.cidbExpiry || '')}">✏️ Edit</button>
+            <button class="delete-btn" data-id="${comp.id}">🗑 Hapus</button>
+          </td>
+        </tr>
+      `;
+    });
+    tbody.innerHTML = html;
+
+    // Bind edit buttons
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name');
+        const number = btn.getAttribute('data-number');
+        const cidb = btn.getAttribute('data-cidb');
+        openEditModal(id, name, number, cidb);
+      });
+    });
+
+    // Bind delete buttons
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        await deleteCompanyById(id);
+      });
+    });
+  }
+
+  async function updateStats() {
+    document.getElementById('totalCompanies').innerHTML = companies.length;
+    document.getElementById('totalProjects').innerHTML = "30";
+
+    let maxSeq = 0;
+    companies.forEach(c => {
+      const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
+      if (seq > maxSeq) maxSeq = seq;
+    });
+    document.getElementById('maxSequence').innerHTML = maxSeq;
+
+    const nextSeq = maxSeq + 1;
+    if (nextSeq <= 2000) {
+      document.getElementById('nextSequence').innerHTML = `${formatNumber(nextSeq)}<br><small style="font-size:0.7rem;">(Siri ${nextSeq})</small>`;
+    } else {
+      document.getElementById('nextSequence').innerHTML = "Penuh (2000)";
+    }
+  }
+
+  async function addCompany() {
+    const companyName = document.getElementById('newCompanyName').value.trim();
+    const cidbExpiry = document.getElementById('newCidbExpiry').value;
+
+    if (!companyName) {
+      alert('⚠️ Sila masukkan Nama Syarikat!');
+      return;
+    }
+    if (!cidbExpiry) {
+      alert('⚠️ Sila masukkan Tarikh Tamat CIDB!');
+      return;
+    }
+
+    if (!isCidbValidFor3Months(cidbExpiry)) {
+      const today = new Date();
+      const threeMonthsLater = new Date(today);
+      threeMonthsLater.setMonth(today.getMonth() + 3);
+      alert(`❌ CIDB TIDAK SAH! Tarikh tamat CIDB mestilah sekurang-kurangnya 3 BULAN dari tarikh hari ini (${today.toLocaleDateString('ms-MY')}). Minimum tarikh tamat: ${threeMonthsLater.toLocaleDateString('ms-MY')}`);
+      return;
+    }
+
+    const addBtn = document.getElementById('addCompanyBtn');
+    addBtn.disabled = true;
+    addBtn.textContent = '⏳ Menjana nombor...';
+
+    try {
+      const nextSeq = await getNextSequenceNumber();
+      if (nextSeq > 2000) throw new Error("Kuota pendaftaran penuh (2000).");
+
+      const autoUndianNumber = formatNumber(nextSeq);
+      const exists = companies.some(c => c.undianNumber === autoUndianNumber);
+      if (exists) throw new Error("Nombor undian sudah wujud.");
+
+      await addDoc(collection(db, COMPANIES_COLLECTION), {
+        companyName: companyName,
+        undianNumber: autoUndianNumber,
+        cidbExpiry: cidbExpiry,
+        autoSeq: nextSeq,
+        createdAt: new Date().toISOString()
+      });
+
+      document.getElementById('newCompanyName').value = '';
+      document.getElementById('newCidbExpiry').value = '';
+      showToast(`✅ Berjaya! ${companyName} mendapat nombor: ${autoUndianNumber}`);
+    } catch (error) {
+      console.error(error);
+      alert(`Ralat: ${error.message}`);
+    } finally {
+      addBtn.disabled = false;
+      addBtn.textContent = '➕ Tambah (Dapatkan Nombor Auto)';
+    }
+  }
+
+  let currentEditId = null;
+
+  function openEditModal(id, name, number, cidb) {
+    currentEditId = id;
+    document.getElementById('editCompanyName').value = name;
+    document.getElementById('editUndianNumber').value = number;
+    document.getElementById('editCidbExpiry').value = cidb;
+    document.getElementById('editModal').style.display = 'flex';
+  }
+
+  async function saveEdit() {
+    const newName = document.getElementById('editCompanyName').value.trim();
+    const newCidb = document.getElementById('editCidbExpiry').value;
+
+    if (!newName) {
+      alert('Nama Syarikat tidak boleh kosong!');
+      return;
+    }
+    if (!newCidb) {
+      alert('Tarikh Tamat CIDB tidak boleh kosong!');
+      return;
+    }
+
+    if (!isCidbValidFor3Months(newCidb)) {
+      const today = new Date();
+      const threeMonthsLater = new Date(today);
+      threeMonthsLater.setMonth(today.getMonth() + 3);
+      alert(`❌ CIDB TIDAK SAH! Tarikh tamat CIDB mestilah sekurang-kurangnya 3 BULAN dari tarikh hari ini. Minimum: ${threeMonthsLater.toLocaleDateString('ms-MY')}`);
+      return;
+    }
+
+    const saveBtn = document.getElementById('saveEditBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
+
+    try {
+      const companyRef = doc(db, COMPANIES_COLLECTION, currentEditId);
+      await updateDoc(companyRef, {
+        companyName: newName,
+        cidbExpiry: newCidb,
+        updatedAt: new Date().toISOString()
+      });
+      closeModal();
+      showToast('✏️ Syarikat berjaya dikemaskini!');
+    } catch (error) {
+      console.error(error);
+      alert(`Ralat semasa kemaskini: ${error.message}`);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Simpan Perubahan';
+    }
+  }
+
+  async function deleteCompanyById(id) {
+    const companyToDelete = companies.find(c => c.id === id);
+    if (!companyToDelete) return;
+
+    const confirmMsg = `Padam syarikat "${companyToDelete.companyName}" (nombor ${companyToDelete.undianNumber})? Tindakan ini tidak boleh dibatalkan.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      await deleteDoc(doc(db, COMPANIES_COLLECTION, id));
+      showToast(`🗑️ Syarikat "${companyToDelete.companyName}" telah dipadam.`);
+    } catch (error) {
+      console.error(error);
+      alert(`Ralat semasa memadam: ${error.message}`);
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('editModal').style.display = 'none';
+    currentEditId = null;
+    document.getElementById('editCompanyName').value = '';
+    document.getElementById('editUndianNumber').value = '';
+    document.getElementById('editCidbExpiry').value = '';
+  }
+
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'success-toast';
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
+  }
+
+  // Login Logic
+  function login() {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('loginError');
+
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      sessionStorage.setItem('admin_logged_in', 'true');
+      renderDashboard();
+    } else {
+      errorDiv.style.display = 'block';
+      errorDiv.innerText = '❌ Username atau password salah! (Gunakan admin / admin)';
+      setTimeout(() => {
+        if (errorDiv) errorDiv.style.display = 'none';
+      }, 3000);
+    }
+  }
+
+  function logout() {
+    sessionStorage.removeItem('admin_logged_in');
+    if (unsubscribeCompanies) {
+      unsubscribeCompanies();
+    }
+    renderLogin();
+  }
+
+  function renderLogin() {
+    const appDiv = document.getElementById('adminApp');
+    appDiv.innerHTML = `
+      <div class="login-container">
+        <div class="login-box">
+          <h1>👑 Admin Panel</h1>
+          <p>e-Undian JPN Perlis - Pengurusan Syarikat</p>
+          <div id="loginError" style="display: none;" class="warning-note" style="background:#ffebee; color:#c62828;"></div>
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Username</label>
+            <input type="text" id="username" placeholder="admin" autocomplete="off" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 12px;">
+          </div>
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Password</label>
+            <input type="password" id="password" placeholder="••••••" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 12px;">
+          </div>
+          <button id="loginBtn" style="width: 100%; padding: 14px; background: #0a2b3e; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Log Masuk</button>
+          <p style="margin-top: 15px; text-align: center; font-size: 0.8rem; color: #888;">🔐 Kredensial: admin / admin</p>
+        </div>
+      </div>
+    `;
+    document.getElementById('loginBtn').addEventListener('click', login);
+    document.getElementById('password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+  }
+
+  function renderDashboard() {
+    const appDiv = document.getElementById('adminApp');
+    appDiv.innerHTML = `
+      <div class="admin-container">
+        <div class="admin-header">
+          <h1>👑 Panel Pentadbiran e-Undian (Nombor Ringkas: 001, 002... 2000)</h1>
+          <button id="logoutBtn" class="logout-btn">🚪 Log Keluar</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-number" id="totalCompanies">0</div>
+            <div class="stat-label">Jumlah Syarikat</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="totalProjects">30</div>
+            <div class="stat-label">Jumlah Projek</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="maxSequence">0</div>
+            <div class="stat-label">Siri Tertinggi</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="nextSequence">-</div>
+            <div class="stat-label">Siri Seterusnya</div>
+          </div>
+        </div>
+
+        <div class="data-table">
+          <h2>➕ TAMBAH SYARIKAT BARU (Nombor Undian DIJANA AUTO: 001, 002...)</h2>
+          <div class="input-group">
+            <input type="text" id="newCompanyName" placeholder="Nama Syarikat" autocomplete="off">
+            <input type="date" id="newCidbExpiry" placeholder="Tarikh Tamat CIDB">
+            <button id="addCompanyBtn" class="add-btn">➕ Tambah (Dapatkan Nombor Auto)</button>
+          </div>
+          <div class="warning-note">
+            ⚠️ SYARAT WAJIB: Tarikh tamat CIDB mestilah sekurang-kurangnya <strong>3 BULAN</strong> dari tarikh hari ini. Nombor undian ringkas seperti <strong>001, 002, 003</strong> sehingga 2000.
+          </div>
+        </div>
+
+        <div class="data-table">
+          <h2>📋 SENARAI SEMUA SYARIKAT (Nombor Undian Ringkas + CIDB) | ✏️ Edit | 🗑 Hapus</h2>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr><th>#</th><th>Nama Syarikat</th><th>Nombor Undian</th><th>Tarikh Tamat CIDB</th><th>Status CIDB (3 Bulan)</th><th>Tarikh Daftar</th><th>Tindakan</th></tr>
+              </thead>
+              <tbody id="companiesTbody">
+                <tr><td colspan="7" class="loading">⏳ Memuat data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="sync-badge">
+          🔄 Real-time sync active
+        </div>
+      </div>
+
+      <div id="editModal" class="modal">
+        <div class="modal-content">
+          <span class="close" id="closeModal">&times;</span>
+          <h3>✏️ Kemaskini Syarikat</h3>
+          <input type="hidden" id="editCompanyId">
+          <div>
+            <label style="font-weight: 600;">Nama Syarikat</label>
+            <input type="text" id="editCompanyName" placeholder="Nama Syarikat">
+          </div>
+          <div>
+            <label style="font-weight: 600;">Nombor Undian (Ringkas)</label>
+            <input type="text" id="editUndianNumber" readonly style="background:#f3f4f6;">
+            <small style="font-size: 0.7rem; color:#888;">Nombor undian adalah sistem auto dan tidak boleh diubah.</small>
+          </div>
+          <div>
+            <label style="font-weight: 600;">Tarikh Tamat CIDB</label>
+            <input type="date" id="editCidbExpiry">
+            <small style="font-size: 0.7rem; color:#e65100;">⚠️ Pastikan tamat CIDB ≥ 3 bulan dari hari ini.</small>
+          </div>
+          <div class="modal-buttons">
+            <button id="saveEditBtn" class="save-btn">💾 Simpan Perubahan</button>
+            <button id="cancelEditBtn" class="cancel-btn">Batal</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Bind events
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    document.getElementById('addCompanyBtn').addEventListener('click', addCompany);
+
+    // Modal handlers
+    const modal = document.getElementById('editModal');
+    const closeSpan = document.getElementById('closeModal');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const saveBtn = document.getElementById('saveEditBtn');
+
+    closeSpan.onclick = closeModal;
+    cancelBtn.onclick = closeModal;
+    saveBtn.onclick = saveEdit;
+
+    window.onclick = function(event) {
+      if (event.target === modal) closeModal();
+    };
+
+    // Start real-time listener
+    setupRealtimeListener();
+  }
+
+  // Initialize
+  if (sessionStorage.getItem('admin_logged_in') === 'true') {
+    renderDashboard();
+  } else {
+    renderLogin();
+  }
+</script>
+</body>
+</html>
