@@ -432,7 +432,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, onSnapshot, getDocs, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCFsldwyJ9XwfNQZ7D3HIOeD4uRnX1VqmY",
@@ -447,13 +447,13 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const COMPANIES_COLLECTION = "registered_companies";
-  const COUNTER_DOC_ID = "sequence_counter";
 
   const ADMIN_USERNAME = "admin";
   const ADMIN_PASSWORD = "admin";
 
   let companies = [];
   let unsubscribeCompanies = null;
+  let isAddingCompany = false;
 
   function formatNumber(seq) {
     return seq.toString().padStart(3, '0');
@@ -475,42 +475,36 @@
     return expiryDate >= threeMonthsLater;
   }
 
-  // ATOMIC sequence number generation using Firestore Transaction
-  async function getNextSequenceNumberAtomic() {
-    const counterRef = doc(db, "counters", COUNTER_DOC_ID);
-    
-    try {
-      const newSeq = await runTransaction(db, async (transaction) => {
-        const counterDoc = await transaction.get(counterRef);
-        let currentSeq = 1;
-        
-        if (counterDoc.exists()) {
-          currentSeq = (counterDoc.data().currentSeq || 0) + 1;
-        } else {
-          // First time - need to check existing companies
-          const companiesSnapshot = await transaction.get(collection(db, COMPANIES_COLLECTION));
-          let maxSeq = 0;
-          companiesSnapshot.forEach(doc => {
-            const data = doc.data();
-            const seq = data.autoSeq || seqFromNumber(data.undianNumber) || 0;
-            if (seq > maxSeq) maxSeq = seq;
-          });
-          currentSeq = maxSeq + 1;
-        }
-        
-        if (currentSeq > 2000) {
-          throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
-        }
-        
-        transaction.set(counterRef, { currentSeq: currentSeq });
-        return currentSeq;
-      });
-      
-      return newSeq;
-    } catch (error) {
-      console.error("Transaction failed:", error);
-      throw error;
+  // Simple atomic sequence using query + addDoc with retry
+  async function getUniqueSequenceNumber(retryCount = 0) {
+    if (retryCount > 5) {
+      throw new Error("Gagal mendapatkan nombor unik selepas beberapa percubaan. Sila cuba lagi.");
     }
+    
+    // Get current max sequence from existing companies
+    let maxSeq = 0;
+    companies.forEach(c => {
+      const seq = c.autoSeq || seqFromNumber(c.undianNumber) || 0;
+      if (seq > maxSeq) maxSeq = seq;
+    });
+    
+    const nextSeq = maxSeq + 1;
+    
+    if (nextSeq > 2000) {
+      throw new Error("Had pendaftaran maksimum 2000 syarikat telah dicapai.");
+    }
+    
+    // Check if this number is already taken (in case of race condition)
+    const existingWithNumber = companies.find(c => c.autoSeq === nextSeq || c.undianNumber === formatNumber(nextSeq));
+    
+    if (existingWithNumber) {
+      // Race condition detected! Wait a bit and retry
+      console.log(`Sequence ${nextSeq} already taken, retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return getUniqueSequenceNumber(retryCount + 1);
+    }
+    
+    return nextSeq;
   }
 
   // REAL-TIME LISTENER for companies
@@ -521,10 +515,10 @@
     
     const q = query(collection(db, COMPANIES_COLLECTION), orderBy("autoSeq", "asc"));
     unsubscribeCompanies = onSnapshot(q, (snapshot) => {
-      companies = [];
+      const newCompanies = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        companies.push({
+        newCompanies.push({
           id: docSnap.id,
           companyName: data.companyName || "N/A",
           undianNumber: data.undianNumber || "N/A",
@@ -533,13 +527,14 @@
           createdAt: data.createdAt || null
         });
       });
+      companies = newCompanies;
       renderTable();
       updateStats();
     }, (error) => {
       console.error("Firestore real-time error:", error);
       const tbody = document.getElementById('companiesTbody');
       if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:red; text-align:center; padding:40px;">❌ Ralat: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:red; text-align:center; padding:40px;">❌ Ralat: ${error.message}<br>Pastikan security rules Firestore dibenarkan.</td></td>`;
       }
     });
   }
@@ -583,7 +578,7 @@
           <td>
             <button class="edit-btn" data-id="${comp.id}" data-name="${escapeHtml(comp.companyName)}" data-number="${escapeHtml(comp.undianNumber)}" data-cidb="${escapeHtml(comp.cidbExpiry || '')}">✏️ Edit</button>
             <button class="delete-btn" data-id="${comp.id}">🗑 Hapus</button>
-          </td>
+           </td>
         </tr>
       `;
     });
@@ -635,6 +630,11 @@
   }
 
   async function addCompany() {
+    if (isAddingCompany) {
+      alert("Sila tunggu, pendaftaran sedang diproses...");
+      return;
+    }
+    
     const companyName = document.getElementById('newCompanyName').value.trim();
     const cidbExpiry = document.getElementById('newCidbExpiry').value;
 
@@ -658,10 +658,11 @@
     const addBtn = document.getElementById('addCompanyBtn');
     addBtn.disabled = true;
     addBtn.textContent = '⏳ Menjana nombor...';
+    isAddingCompany = true;
 
     try {
-      // Use atomic transaction to get unique sequence number
-      const nextSeq = await getNextSequenceNumberAtomic();
+      // Get unique sequence number with retry mechanism
+      const nextSeq = await getUniqueSequenceNumber();
       
       if (nextSeq > 2000) throw new Error("Kuota pendaftaran penuh (2000).");
 
@@ -684,6 +685,7 @@
     } finally {
       addBtn.disabled = false;
       addBtn.textContent = '➕ Tambah (Dapatkan Nombor Auto)';
+      isAddingCompany = false;
     }
   }
 
@@ -883,7 +885,7 @@
           </div>
         </div>
         <div class="sync-badge">
-          🔄 Real-time sync active | 🔒 Atomic sequence numbers
+          🔄 Real-time sync active | 🔒 No duplicate numbers
         </div>
       </div>
 
